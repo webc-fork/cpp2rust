@@ -56,3 +56,98 @@ thread_local! {
 pub fn cpp2rust_errno() -> Ptr<i32> {
     ERRNO.with(AsPointer::as_pointer)
 }
+
+use crate::ByteRepr;
+
+#[allow(non_camel_case_types)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct std_memory_order;
+
+#[allow(non_camel_case_types)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct std_atomic_flag {
+  pub val: bool,
+}
+
+impl std_atomic_flag {
+  pub fn std_atomic_flag1() -> Self {
+    Self { val: false }
+  }
+  pub fn test_and_set<T>(&self, _order: Option<T>) -> bool {
+    true
+  }
+  pub fn clear<T>(&self, _order: Option<T>) {}
+}
+
+impl ByteRepr for std_atomic_flag {
+  fn byte_size() -> usize {
+    1
+  }
+  fn to_bytes(&self, buf: &mut [u8]) {
+    buf[0] = self.val as u8;
+  }
+  fn from_bytes(buf: &[u8]) -> Self {
+    Self { val: buf[0] != 0 }
+  }
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct std_atomic_bool_ {
+  pub val: bool,
+}
+
+impl std_atomic_bool_ {
+  pub fn std_atomic_bool_1(val: bool) -> Self {
+    Self { val }
+  }
+  pub fn load<T>(&self, _order: Option<T>) -> bool {
+    self.val
+  }
+  pub fn store<T>(&self, _val: bool, _order: Option<T>) {}
+}
+
+impl ByteRepr for std_atomic_bool_ {
+  fn byte_size() -> usize {
+    1
+  }
+  fn to_bytes(&self, buf: &mut [u8]) {
+    buf[0] = self.val as u8;
+  }
+  fn from_bytes(buf: &[u8]) -> Self {
+    Self { val: buf[0] != 0 }
+  }
+}
+
+#[allow(non_camel_case_types)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct std_atomic_unsigned_long_ {
+  pub val: u64,
+}
+
+impl std_atomic_unsigned_long_ {
+  pub fn std_atomic_unsigned_long_1(val: u64) -> Self {
+    Self { val }
+  }
+  pub fn load<T>(&self, _order: Option<T>) -> u64 {
+    self.val
+  }
+  pub fn store<T>(&self, _val: u64, _order: Option<T>) {}
+  pub fn fetch_add<T>(&self, _val: u64, _order: Option<T>) -> u64 {
+    self.val
+  }
+}
+
+impl ByteRepr for std_atomic_unsigned_long_ {
+  fn byte_size() -> usize {
+    8
+  }
+  fn to_bytes(&self, buf: &mut [u8]) {
+    buf.copy_from_slice(&self.val.to_ne_bytes());
+  }
+  fn from_bytes(buf: &[u8]) -> Self {
+    let mut a = [0u8; 8];
+    a.copy_from_slice(buf);
+    Self { val: u64::from_ne_bytes(a) }
+  }
+}

@@ -1570,9 +1570,17 @@ bool Converter::GetFmtArg(clang::Expr *arg, std::string &fmt,
     // Delete " from string
     trim.remove_prefix(1);
     trim.remove_suffix(1);
-    fmt += trim;
+    for (char c : trim) {
+      if (c == '{') fmt += "{{";
+      else if (c == '}') fmt += "}}";
+      else fmt += c;
+    }
   } else if (auto ch = GetEscapedUTF8CharLiteral(arg); !ch.empty()) {
-    fmt += std::move(ch);
+    for (char c : ch) {
+      if (c == '{') fmt += "{{";
+      else if (c == '}') fmt += "}}";
+      else fmt += c;
+    }
   } else if (arg_str.contains("std::endl")) {
     fmt += "\\n";
   } else if (arg_str.contains("std::hex")) {
@@ -1744,6 +1752,27 @@ void Converter::ConvertVAArgCall(clang::CallExpr *expr) {
 }
 
 bool Converter::VisitCallExpr(clang::CallExpr *expr) {
+  if (auto *fn = expr->getDirectCallee()) {
+    if (fn->getBuiltinID() == clang::Builtin::BI__builtin_unreachable ||
+        fn->getName() == "__builtin_unreachable") {
+      StrCat("unreachable!()");
+      SetFreshType(expr->getType());
+      return false;
+    }
+    if (fn->getBuiltinID() == clang::Builtin::BI__builtin_expect ||
+        fn->getName() == "__builtin_expect") {
+      Convert(expr->getArg(0));
+      SetFreshType(expr->getType());
+      return false;
+    }
+    if (fn->getBuiltinID() == clang::Builtin::BI__builtin_trap ||
+        fn->getName() == "__builtin_trap") {
+      StrCat("panic!(\"builtin trap\")");
+      SetFreshType(expr->getType());
+      return false;
+    }
+  }
+
   if (IsBuiltinVaStart(expr) || IsBuiltinVaEnd(expr) || IsBuiltinVaCopy(expr)) {
     ConvertVAArgCall(expr);
     SetFreshType(expr->getType());
@@ -1885,18 +1914,20 @@ Converter::CallInfo Converter::CollectCallInfo(clang::CallExpr *expr) {
   const auto *function = decl ? decl->getAsFunction() : nullptr;
   const clang::FunctionProtoType *proto = nullptr;
   if (!function) {
-    auto callee_ty = callee->getType().getDesugaredType(ctx_);
+    auto callee_ty = callee->getType().getDesugaredType(ctx_).getNonReferenceType();
     if (auto ptr_ty = callee_ty->getAs<clang::PointerType>()) {
       proto = ptr_ty->getPointeeType()->getAs<clang::FunctionProtoType>();
+    } else if (auto fn_ty = callee_ty->getAs<clang::FunctionProtoType>()) {
+      proto = fn_ty;
+    } else if (auto blk_ty = callee_ty->getAs<clang::BlockPointerType>()) {
+      proto = blk_ty->getPointeeType()->getAs<clang::FunctionProtoType>();
     }
   }
-  assert((function || proto) &&
-         "Either function decl or function prototype should be known");
 
   unsigned num_args = expr->getNumArgs() - arg_begin;
   unsigned num_named_params =
-      function ? function->getNumParams() : proto->getNumParams();
-  info.is_variadic = function ? function->isVariadic() : proto->isVariadic();
+      function ? function->getNumParams() : (proto ? proto->getNumParams() : num_args);
+  info.is_variadic = function ? function->isVariadic() : (proto ? proto->isVariadic() : false);
   info.is_fn_ptr_call = !function;
   info.is_libc_passthrough = Mapper::IsLibcPassthrough(GetCalleeOrExpr(expr));
 
@@ -1907,7 +1938,7 @@ Converter::CallInfo Converter::CollectCallInfo(clang::CallExpr *expr) {
                           ? ("_" + function->getParamDecl(i)->getNameAsString())
                           : ("_arg" + std::to_string(i)),
         .param_type = function ? function->getParamDecl(i)->getType()
-                               : proto->getParamType(i),
+                               : (proto ? proto->getParamType(i) : arg->getType()),
         .expr = arg,
         .has_default = function && function->getParamDecl(i)->hasDefaultArg(),
         .kind = (IsLiteral(arg) || info.is_libc_passthrough) ? Kind::Inline

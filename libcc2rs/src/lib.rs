@@ -2,7 +2,7 @@
 // Distributed under the MIT license that can be found in the LICENSE file.
 
 mod reinterpret;
-pub use reinterpret::ByteRepr;
+pub use reinterpret::*;
 
 mod rc;
 pub use rc::*;

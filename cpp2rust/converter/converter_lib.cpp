@@ -595,6 +595,9 @@ static std::string GetLexicalSpecializationID(const clang::Decl *decl) {
 
 std::string GetID(const clang::Decl *decl) {
   assert(decl);
+  if (auto *canonical = decl->getCanonicalDecl()) {
+    decl = canonical;
+  }
   return GetLexicalSpecializationID(decl) + GetLocationID(decl) +
          GetParamSignature(decl);
 }

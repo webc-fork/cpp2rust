@@ -20,7 +20,7 @@ pub fn expand(input: TokenStream) -> TokenStream {
     }
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     quote::quote! {
-        impl #impl_generics ::libcc2rs::ByteRepr for #name #ty_generics #where_clause {
+        impl #impl_generics ByteRepr for #name #ty_generics #where_clause {
             #[inline]
             fn byte_size() -> usize {
                 1
