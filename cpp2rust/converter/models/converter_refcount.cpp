@@ -1056,6 +1056,24 @@ void ConverterRefCount::ConvertPrintf(clang::CallExpr *expr) {
 }
 
 bool ConverterRefCount::VisitCallExpr(clang::CallExpr *expr) {
+  if (auto *fn = expr->getDirectCallee()) {
+    if (fn->getBuiltinID() == clang::Builtin::BI__builtin_unreachable ||
+        fn->getName() == "__builtin_unreachable") {
+      StrCat("unreachable!()");
+      return false;
+    }
+    if (fn->getBuiltinID() == clang::Builtin::BI__builtin_expect ||
+        fn->getName() == "__builtin_expect") {
+      Convert(expr->getArg(0));
+      return false;
+    }
+    if (fn->getBuiltinID() == clang::Builtin::BI__builtin_trap ||
+        fn->getName() == "__builtin_trap") {
+      StrCat("panic!(\"builtin trap\")");
+      return false;
+    }
+  }
+
   if (IsBuiltinVaStart(expr) || IsBuiltinVaEnd(expr) || IsBuiltinVaCopy(expr)) {
     ConvertVAArgCall(expr);
     return false;
