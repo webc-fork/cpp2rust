@@ -1753,20 +1753,21 @@ void Converter::ConvertVAArgCall(clang::CallExpr *expr) {
 
 bool Converter::VisitCallExpr(clang::CallExpr *expr) {
   if (auto *fn = expr->getDirectCallee()) {
+    auto *id = fn->getIdentifier();
     if (fn->getBuiltinID() == clang::Builtin::BI__builtin_unreachable ||
-        fn->getName() == "__builtin_unreachable") {
+        (id && id->getName() == "__builtin_unreachable")) {
       StrCat("unreachable!()");
       SetFreshType(expr->getType());
       return false;
     }
     if (fn->getBuiltinID() == clang::Builtin::BI__builtin_expect ||
-        fn->getName() == "__builtin_expect") {
+        (id && id->getName() == "__builtin_expect")) {
       Convert(expr->getArg(0));
       SetFreshType(expr->getType());
       return false;
     }
     if (fn->getBuiltinID() == clang::Builtin::BI__builtin_trap ||
-        fn->getName() == "__builtin_trap") {
+        (id && id->getName() == "__builtin_trap")) {
       StrCat("panic!(\"builtin trap\")");
       SetFreshType(expr->getType());
       return false;
